@@ -22,7 +22,7 @@ comment_date = ["2016-02-01", "2016-02-08", "2016-02-15", "2016-02-22", "2016-02
 
 
 def convert_age(age_str):
-# 对年龄进行映射
+    # 对年龄进行映射
     if age_str == u'-1':
         return 0
     elif age_str == u'15岁以下':
@@ -40,28 +40,29 @@ def convert_age(age_str):
     else:
         return -1
 
+
 def get_basic_user_feat():
     dump_path = './cache/basic_user.csv'
-    #one-hot coding age,sex,lv-cd
+    # one-hot coding age,sex,lv-cd
     if os.path.exists(dump_path):
         # user = pickle.load(open(dump_path))
-        user = pd.read_csv(user_path)
+        user = pd.read_csv(dump_path)
     else:
         user = pd.read_csv(user_path, encoding='gbk')
-        user['age'] = user['age'].map(convert_age) #对年龄映射
+        user['age'] = user['age'].map(convert_age)  # 对年龄映射
         age_df = pd.get_dummies(user["age"], prefix="age")
         sex_df = pd.get_dummies(user["sex"], prefix="sex")
         user_lv_df = pd.get_dummies(user["user_lv_cd"], prefix="user_lv_cd")
         user = pd.concat([user['user_id'], age_df, sex_df, user_lv_df], axis=1)
         # pickle.dump(user, open(dump_path, 'w'))
-        user.to_csv(dump_path,index=False,encoding='utf-8')
+        user.to_csv(dump_path, index=False, encoding='utf-8')
     print 'finish get basic user info'
     return user
 
 
 def get_basic_product_feat():
     dump_path = './cache/basic_product.csv'
-    #one-hot coding a1,a2,a3
+    # one-hot coding a1,a2,a3
     if os.path.exists(dump_path):
         # product = pickle.load(open(dump_path))
         product = pd.read_csv(dump_path)
@@ -72,7 +73,7 @@ def get_basic_product_feat():
         attr3_df = pd.get_dummies(product["a3"], prefix="a3")
         product = pd.concat([product[['sku_id', 'cate', 'brand']], attr1_df, attr2_df, attr3_df], axis=1)
         # pickle.dump(product, open(dump_path, 'w'))
-        product.to_csv(dump_path,index=False)
+        product.to_csv(dump_path, index=False)
     print 'finish get basic product info'
     return product
 
@@ -81,9 +82,11 @@ def get_actions_1():
     action = pd.read_csv(action_1_path)
     return action
 
+
 def get_actions_2():
     action2 = pd.read_csv(action_2_path)
     return action2
+
 
 def get_actions_3():
     action3 = pd.read_csv(action_3_path)
@@ -105,10 +108,10 @@ def get_actions(start_date, end_date):
         action_1 = get_actions_1()
         action_2 = get_actions_2()
         action_3 = get_actions_3()
-        actions = pd.concat([action_1, action_2, action_3]) # type: pd.DataFrame
+        actions = pd.concat([action_1, action_2, action_3])  # type: pd.DataFrame
         actions = actions[(actions.time >= start_date) & (actions.time < end_date)]
         # pickle.dump(actions, open(dump_path, 'w'))
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
     print 'action combination finish...'
     return actions
 
@@ -122,18 +125,18 @@ def get_action_feat(start_date, end_date):
     dump_path = './cache/action_accumulate_%s_%s.csv' % (start_date, end_date)
     if os.path.exists(dump_path):
         # actions = pickle.load(open(dump_path))
-        actions =pd.read_csv(dump_path)
+        actions = pd.read_csv(dump_path)
     else:
-        # actions = get_actions(start_date, end_date)
-        actions =pd.read_csv(action_1_path)
+        actions = get_actions(start_date, end_date)
+        # actions = pd.read_csv(action_1_path)
         actions = actions[['user_id', 'sku_id', 'type']]
         df = pd.get_dummies(actions['type'], prefix='%s-%s-action' % (start_date, end_date))
         actions = pd.concat([actions, df], axis=1)  # type: pd.DataFrame
-        #用户对不同商品的行为统计求和
+        # 用户对不同商品的行为统计求和
         actions = actions.groupby(['user_id', 'sku_id'], as_index=False).sum()
         del actions['type']
         # pickle.dump(actions, open(dump_path, 'w'))
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
     print 'finish get action feat'
     return actions
 
@@ -142,14 +145,15 @@ def get_accumulate_action_feat(start_date, end_date):
     dump_path = './cache/action_accumulate_%s_%s.pkl' % (start_date, end_date)
     if os.path.exists(dump_path):
         # actions = pickle.load(open(dump_path))
-        actions =pd.read_csv(dump_path)
+        actions = pd.read_csv(dump_path)
     else:
         actions = get_actions(start_date, end_date)
         df = pd.get_dummies(actions['type'], prefix='action')
-        actions = pd.concat([actions, df], axis=1) # type: pd.DataFrame
-        #近期行为按时间衰减
-        actions['weights'] = actions['time'].map(lambda x: datetime.strptime(end_date, '%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
-        #actions['weights'] = time.strptime(end_date, '%Y-%m-%d') - actions['datetime']
+        actions = pd.concat([actions, df], axis=1)  # type: pd.DataFrame
+        # 近期行为按时间衰减
+        actions['weights'] = actions['time'].map(
+            lambda x: datetime.strptime(end_date, '%Y-%m-%d') - datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+        # actions['weights'] = time.strptime(end_date, '%Y-%m-%d') - actions['datetime']
         actions['weights'] = actions['weights'].map(lambda x: math.exp(-x.days))
         print actions.head(10)
         actions['action_1'] = actions['action_1'] * actions['weights']
@@ -165,7 +169,7 @@ def get_accumulate_action_feat(start_date, end_date):
         del actions['weights']
         actions = actions.groupby(['user_id', 'sku_id', 'cate', 'brand'], as_index=False).sum()
         # pickle.dump(actions, open(dump_path, 'w'))
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
     print 'finish actions feat....'
 
     return actions
@@ -175,7 +179,7 @@ def get_comments_product_feat(start_date, end_date):
     dump_path = './cache/comments_accumulate_%s_%s.csv' % (start_date, end_date)
     if os.path.exists(dump_path):
         # comments = pickle.load(open(dump_path))
-        commnets =pd.read_csv(dump_path)
+        comments = pd.read_csv(dump_path)
     else:
         comments = pd.read_csv(comment_path)
         comment_date_end = end_date
@@ -186,13 +190,15 @@ def get_comments_product_feat(start_date, end_date):
                 break
         comments = comments[(comments.dt >= comment_date_begin) & (comments.dt < comment_date_end)]
         df = pd.get_dummies(comments['comment_num'], prefix='comment_num')
-        comments = pd.concat([comments, df], axis=1) # type: pd.DataFrame
-        #del comments['dt']
-        #del comments['comment_num']
-        comments = comments[['sku_id', 'has_bad_comment', 'bad_comment_rate', 'comment_num_1', 'comment_num_2', 'comment_num_3', 'comment_num_4']]
+        comments = pd.concat([comments, df], axis=1)  # type: pd.DataFrame
+        # del comments['dt']
+        # del comments['comment_num']
+        comments = comments[
+            ['sku_id', 'has_bad_comment', 'bad_comment_rate', 'comment_num_1', 'comment_num_2', 'comment_num_3',
+             'comment_num_4']]
         # pickle.dump(comments, open(dump_path, 'w'))
         print 'finish get comments features..'
-        comments.to_csv(dump_path,index=False)
+        comments.to_csv(dump_path, index=False)
     return comments
 
 
@@ -210,7 +216,7 @@ def get_accumulate_user_feat(start_date, end_date):
     dump_path = './cache/user_feat_accumulate_%s_%s.csv' % (start_date, end_date)
     if os.path.exists(dump_path):
         # actions = pickle.load(open(dump_path))
-        actions =pd.read_csv(dump_path)
+        actions = pd.read_csv(dump_path)
     else:
         actions = get_actions(start_date, end_date)
         df = pd.get_dummies(actions['type'], prefix='action')
@@ -223,9 +229,9 @@ def get_accumulate_user_feat(start_date, end_date):
         actions['user_action_6_ratio'] = actions['action_4'] / actions['action_6']
         actions = actions[feature]
         print 'finish get the ratio of user'
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
     print 'finish user ration computation....'
-        # pickle.dump(actions, open(dump_path, 'w'))
+    # pickle.dump(actions, open(dump_path, 'w'))
     return actions
 
 
@@ -242,7 +248,7 @@ def get_accumulate_product_feat(start_date, end_date):
     dump_path = './cache/product_feat_accumulate_%s_%s.csv' % (start_date, end_date)
     if os.path.exists(dump_path):
         # actions = pickle.load(open(dump_path))
-        actions =pd.read_csv(dump_path)
+        actions = pd.read_csv(dump_path)
     else:
         actions = get_actions(start_date, end_date)
         df = pd.get_dummies(actions['type'], prefix='action')
@@ -255,17 +261,17 @@ def get_accumulate_product_feat(start_date, end_date):
         actions['product_action_6_ratio'] = actions['action_4'] / actions['action_6']
         actions = actions[feature]
         # pickle.dump(actions, open(dump_path, 'w'))
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
     print 'finish product ration computation....'
     return actions
 
 
 def get_labels(start_date, end_date):
-    #发生过购买行为的记为正样例
+    # 发生过购买行为的记为正样例
     dump_path = './cache/labels_%s_%s.csv' % (start_date, end_date)
     if os.path.exists(dump_path):
         # actions = pickle.load(open(dump_path))
-        actions =pd.read_csv(dump_path)
+        actions = pd.read_csv(dump_path)
     else:
         actions = get_actions(start_date, end_date)
         actions = actions[actions['type'] == 4]
@@ -273,15 +279,16 @@ def get_labels(start_date, end_date):
         actions['label'] = 1
         actions = actions[['user_id', 'sku_id', 'label']]
         # pickle.dump(actions, open(dump_path, 'w'))
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
         print 'get labels for dataset...'
     return actions
 
 
 def make_test_set(train_start_date, train_end_date):
-    dump_path = './cache/test_set_%s_%s.pkl' % (train_start_date, train_end_date)
+    dump_path = './cache/test_set_%s_%s.csv' % (train_start_date, train_end_date)
     if os.path.exists(dump_path):
-        actions = pickle.load(open(dump_path))
+        # actions = pickle.load(open(dump_path))
+        actions = pd.read_csv(dump_path)
     else:
         start_days = "2016-02-01"
         user = get_basic_user_feat()
@@ -289,7 +296,7 @@ def make_test_set(train_start_date, train_end_date):
         user_acc = get_accumulate_user_feat(start_days, train_end_date)
         product_acc = get_accumulate_product_feat(start_days, train_end_date)
         comment_acc = get_comments_product_feat(train_start_date, train_end_date)
-        #labels = get_labels(test_start_date, test_end_date)
+        # labels = get_labels(test_start_date, test_end_date)
 
         # generate 时间窗口
         # actions = get_accumulate_action_feat(train_start_date, train_end_date)
@@ -308,19 +315,22 @@ def make_test_set(train_start_date, train_end_date):
         actions = pd.merge(actions, product, how='left', on='sku_id')
         actions = pd.merge(actions, product_acc, how='left', on='sku_id')
         actions = pd.merge(actions, comment_acc, how='left', on='sku_id')
-        #actions = pd.merge(actions, labels, how='left', on=['user_id', 'sku_id'])
+        # actions = pd.merge(actions, labels, how='left', on=['user_id', 'sku_id'])
         actions = actions.fillna(0)
         actions = actions[actions['cate'] == 8]
+        actions.to_csv(dump_path,index=False)
 
-    users = actions[['user_id', 'sku_id']].copy() #深复制数据
+    users = actions[['user_id', 'sku_id']].copy()  # 深复制数据
     del actions['user_id']
     del actions['sku_id']
     return users, actions
 
+
 def make_train_set(train_start_date, train_end_date, test_start_date, test_end_date, days=30):
-    dump_path = './cache/train_set_%s_%s_%s_%s.pkl' % (train_start_date, train_end_date, test_start_date, test_end_date)
+    dump_path = './cache/train_set_%s_%s_%s_%s.csv' % (train_start_date, train_end_date, test_start_date, test_end_date)
     if os.path.exists(dump_path):
-        actions = pickle.load(open(dump_path))
+        # actions = pickle.load(open(dump_path))
+        actions = pd.read_csv(dump_path)
     else:
         start_days = "2016-02-01"
         user = get_basic_user_feat()
@@ -349,18 +359,17 @@ def make_train_set(train_start_date, train_end_date, test_start_date, test_end_d
         actions = pd.merge(actions, comment_acc, how='left', on='sku_id')
         actions = pd.merge(actions, labels, how='left', on=['user_id', 'sku_id'])
         actions = actions.fillna(0)
-
+        actions.to_csv(dump_path,index=False)
     users = actions[['user_id', 'sku_id']].copy()
-    labels = actions['label'].copy()
     del actions['user_id']
     del actions['sku_id']
+    labels = actions['label'].copy()
     del actions['label']
 
     return users, actions, labels
 
 
 def report(pred, label):
-
     actions = label
     result = pred
 
@@ -376,13 +385,13 @@ def report(pred, label):
     all_user_test_item_pair = np.array(all_user_test_item_pair)
 
     # 计算所有用户购买评价指标
-    pos, neg = 0,0
+    pos, neg = 0, 0
     for user_id in all_user_test_set:
         if user_id in all_user_set:
             pos += 1
         else:
             neg += 1
-    all_user_acc = 1.0 * pos / ( pos + neg)
+    all_user_acc = 1.0 * pos / (pos + neg)
     all_user_recall = 1.0 * pos / len(all_user_set)
     print '所有用户中预测购买用户的准确率为 ' + str(all_user_acc)
     print '所有用户中预测购买用户的召回率' + str(all_user_recall)
@@ -393,7 +402,7 @@ def report(pred, label):
             pos += 1
         else:
             neg += 1
-    all_item_acc = 1.0 * pos / ( pos + neg)
+    all_item_acc = 1.0 * pos / (pos + neg)
     all_item_recall = 1.0 * pos / len(all_user_item_pair)
     print '所有用户中预测购买商品的准确率为 ' + str(all_item_acc)
     print '所有用户中预测购买商品的召回率' + str(all_item_recall)
@@ -403,6 +412,7 @@ def report(pred, label):
     print 'F11=' + str(F11)
     print 'F12=' + str(F12)
     print 'score=' + str(score)
+
 
 if __name__ == '__main__':
     # get_basic_product_feat()
@@ -428,8 +438,4 @@ if __name__ == '__main__':
     actions['user_action_6_ratio'] = actions['action_4'] / actions['action_6']
     actions = actions[feature]
     print 'finish get the ratio of user'
-    actions.to_csv('cache/ration_action_sku.csv',index=False)
-
-
-
-
+    actions.to_csv('cache/ration_action_sku.csv', index=False)
