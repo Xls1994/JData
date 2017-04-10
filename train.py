@@ -4,6 +4,7 @@ from gen_feat import make_test_set
 from sklearn.model_selection import train_test_split
 import xgboost as xgb
 from gen_feat import report
+import datetime
 import os
 
 
@@ -32,10 +33,10 @@ def xgboost_train():
     return bst
 
 
-def xgboost_make_submission():
+def xgboost_make_submission(retrain = False):
     sub_start_date = '2016-03-15'
     sub_end_date = '2016-04-16'
-    if os.path.exists('./cache/bstmodel.bin'):
+    if os.path.exists('./cache/bstmodel.bin') and not retrain:
         bst = xgb.Booster({'ntheard':4})
         bst.load_model('./cache/bstmodel.bin')
     else:
@@ -48,7 +49,9 @@ def xgboost_make_submission():
     pred = pred[['user_id', 'sku_id']]
     pred = pred.groupby('user_id').first().reset_index()
     pred['user_id'] = pred['user_id'].astype(int)
-    pred.to_csv('./sub/submission.csv', index=False, index_label=False)
+    dt = datetime.datetime.now()
+    sdt = str(dt.date())+str(dt.hour)+str(dt.minute)+str(dt.second)
+    pred.to_csv('./sub/submission_%s.csv' % sdt, index=False, index_label=False)
 
 
 def xgboost_cv():
@@ -89,4 +92,4 @@ def xgboost_cv():
 
 if __name__ == '__main__':
     # xgboost_cv()
-    xgboost_make_submission()
+    xgboost_make_submission(False)

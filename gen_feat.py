@@ -3,11 +3,13 @@
 import time
 from datetime import datetime
 from datetime import timedelta
+from datetime import date
 import pandas as pd
 import pickle
 import os
 import math
 import numpy as np
+
 
 action_1_path = "./data/JData_Action_201602.csv"
 action_2_path = "./data/JData_Action_201603.csv"
@@ -41,6 +43,18 @@ def convert_age(age_str):
         return -1
 
 
+def convert_reg_date(date_str):
+    #对注册日期进行映射,值为距预测时间的天数
+    predict_date = datetime.strptime('2016-04-16','%Y-%m-%d')
+    try:
+        reg_date = datetime.strptime(date_str,'%Y-%m-%d')
+        ds = (predict_date - reg_date).days
+        return ds
+    except:
+        return 0
+
+
+
 def get_basic_user_feat():
     dump_path = './cache/basic_user.csv'
     # one-hot coding age,sex,lv-cd
@@ -50,10 +64,14 @@ def get_basic_user_feat():
     else:
         user = pd.read_csv(user_path, encoding='gbk')
         user['age'] = user['age'].map(convert_age)  # 对年龄映射
+
+        user['user_reg_tm'] = user['user_reg_tm'].map(convert_reg_date)
+
         age_df = pd.get_dummies(user["age"], prefix="age")
+
         sex_df = pd.get_dummies(user["sex"], prefix="sex")
         user_lv_df = pd.get_dummies(user["user_lv_cd"], prefix="user_lv_cd")
-        user = pd.concat([user['user_id'], age_df, sex_df, user_lv_df], axis=1)
+        user = pd.concat([user[['user_id','user_reg_tm']], age_df, sex_df, user_lv_df], axis=1)
         # pickle.dump(user, open(dump_path, 'w'))
         user.to_csv(dump_path, index=False, encoding='utf-8')
     print 'finish get basic user info'
@@ -71,7 +89,9 @@ def get_basic_product_feat():
         attr1_df = pd.get_dummies(product["a1"], prefix="a1")
         attr2_df = pd.get_dummies(product["a2"], prefix="a2")
         attr3_df = pd.get_dummies(product["a3"], prefix="a3")
-        product = pd.concat([product[['sku_id', 'cate', 'brand']], attr1_df, attr2_df, attr3_df], axis=1)
+        cate_df = pd.get_dummies(product['cate'],prefix='cate')
+        brand_df = pd.get_dummies(product['brand'],prefix='brand')
+        product = pd.concat([product[['sku_id']], attr1_df, attr2_df, attr3_df,cate_df,brand_df], axis=1)
         # pickle.dump(product, open(dump_path, 'w'))
         product.to_csv(dump_path, index=False)
     print 'finish get basic product info'
@@ -318,7 +338,7 @@ def make_test_set(train_start_date, train_end_date):
         # actions = pd.merge(actions, labels, how='left', on=['user_id', 'sku_id'])
         actions = actions.fillna(0)
         actions = actions[actions['cate'] == 8]
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
 
     users = actions[['user_id', 'sku_id']].copy()  # 深复制数据
     del actions['user_id']
@@ -359,7 +379,7 @@ def make_train_set(train_start_date, train_end_date, test_start_date, test_end_d
         actions = pd.merge(actions, comment_acc, how='left', on='sku_id')
         actions = pd.merge(actions, labels, how='left', on=['user_id', 'sku_id'])
         actions = actions.fillna(0)
-        actions.to_csv(dump_path,index=False)
+        actions.to_csv(dump_path, index=False)
     users = actions[['user_id', 'sku_id']].copy()
     del actions['user_id']
     del actions['sku_id']
