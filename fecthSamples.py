@@ -12,14 +12,14 @@ import csv
 def fetch_sample(test_data_path, feature_data_path, negative_data_path,positive_data_path):
 
     buy = set()
-    for line in csv.reader(file(test_data_path, 'rb')):
+    for line in csv.reader(file(test_data_path, 'r')):
         if line[4] == '4':
             buy.add((line[0], line[1]))  # 正例集
 
-    negative_file = file(negative_data_path, 'wb')
+    negative_file = file(negative_data_path, 'w')
     negative_writer = csv.writer(negative_file)
 
-    positive_file = file(positive_data_path, 'wb')
+    positive_file = file(positive_data_path, 'w')
     positive_writer = csv.writer(positive_file)
 
     print 'open ',feature_data_path,'to add label'
