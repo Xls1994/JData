@@ -10,7 +10,6 @@ import os
 import math
 import numpy as np
 
-
 action_1_path = "./data/JData_Action_201602.csv"
 action_2_path = "./data/JData_Action_201603.csv"
 action_3_path = "./data/JData_Action_201604.csv"
@@ -44,15 +43,14 @@ def convert_age(age_str):
 
 
 def convert_reg_date(date_str):
-    #对注册日期进行映射,值为距预测时间的天数
-    predict_date = datetime.strptime('2016-04-16','%Y-%m-%d')
+    # 对注册日期进行映射,值为距预测时间的天数
+    predict_date = datetime.strptime('2016-04-16', '%Y-%m-%d')
     try:
-        reg_date = datetime.strptime(date_str,'%Y-%m-%d')
+        reg_date = datetime.strptime(date_str, '%Y-%m-%d')
         ds = (predict_date - reg_date).days
         return ds
     except:
         return 0
-
 
 
 def get_basic_user_feat():
@@ -70,8 +68,8 @@ def get_basic_user_feat():
         age_df = pd.get_dummies(user["age"], prefix="age")
 
         sex_df = pd.get_dummies(user["sex"], prefix="sex")
-        user_lv_df = pd.get_dummies(user["user_lv_cd"], prefix="user_lv_cd")
-        user = pd.concat([user[['user_id','user_reg_tm']], age_df, sex_df, user_lv_df], axis=1)
+        # user_lv_df = pd.get_dummies(user["user_lv_cd"], prefix="user_lv_cd")
+        user = pd.concat([user[['user_id', 'user_reg_tm', 'user_lv_cd']], age_df, sex_df], axis=1)
         # pickle.dump(user, open(dump_path, 'w'))
         user.to_csv(dump_path, index=False, encoding='utf-8')
     print 'finish get basic user info'
@@ -89,9 +87,10 @@ def get_basic_product_feat():
         attr1_df = pd.get_dummies(product["a1"], prefix="a1")
         attr2_df = pd.get_dummies(product["a2"], prefix="a2")
         attr3_df = pd.get_dummies(product["a3"], prefix="a3")
-        cate_df = pd.get_dummies(product['cate'],prefix='cate')
-        brand_df = pd.get_dummies(product['brand'],prefix='brand')
-        product = pd.concat([product[['sku_id']], attr1_df, attr2_df, attr3_df,cate_df,brand_df], axis=1)
+        cate_df = pd.get_dummies(product['cate'], prefix='cate')
+        brand_df = pd.get_dummies(product['brand'], prefix='brand')
+        # product = pd.concat([product[['sku_id','brand']], attr1_df, attr2_df, attr3_df,cate_df], axis=1)
+        product = pd.concat([product[['sku_id','brand']], attr1_df, attr2_df, attr3_df, brand_df, cate_df], axis=1)
         # pickle.dump(product, open(dump_path, 'w'))
         product.to_csv(dump_path, index=False)
     print 'finish get basic product info'
@@ -209,13 +208,15 @@ def get_comments_product_feat(start_date, end_date):
                 comment_date_begin = date
                 break
         comments = comments[(comments.dt >= comment_date_begin) & (comments.dt < comment_date_end)]
-        df = pd.get_dummies(comments['comment_num'], prefix='comment_num')
-        comments = pd.concat([comments, df], axis=1)  # type: pd.DataFrame
+        # df = pd.get_dummies(comments['comment_num'], prefix='comment_num')
+        # comments = pd.concat([comments, df], axis=1)  # type: pd.DataFrame
         # del comments['dt']
         # del comments['comment_num']
+        # comments = comments[
+        #     ['sku_id', 'has_bad_comment', 'bad_comment_rate', 'comment_num_1', 'comment_num_2', 'comment_num_3',
+        #      'comment_num_4']]
         comments = comments[
-            ['sku_id', 'has_bad_comment', 'bad_comment_rate', 'comment_num_1', 'comment_num_2', 'comment_num_3',
-             'comment_num_4']]
+            ['sku_id', 'has_bad_comment', 'bad_comment_rate', 'comment_num']]
         # pickle.dump(comments, open(dump_path, 'w'))
         print 'finish get comments features..'
         comments.to_csv(dump_path, index=False)
@@ -255,6 +256,32 @@ def get_accumulate_user_feat(start_date, end_date):
     return actions
 
 
+def get_accumulate_brand_feat(start_date, end_date):
+    feature = ['brand', 'brand_action_1_ratio', 'brand_action_2_ratio', 'brand_action_3_ratio',
+               'brand_action_5_ratio', 'brand_action_6_ratio', 'brand_action_num']
+    dump_path = './cache/brand_feat_accumulate_%s_%s.csv' %(start_date,end_date)
+    if os._exists(dump_path):
+        actions = pd.read_csv(dump_path)
+    else:
+        actions = get_actions(start_date,end_date)
+        df = pd.get_dummies(actions['type'],prefix='action')
+        actions = pd.concat([actions['brand'],df],axis=1)
+        actions = actions.groupby(['brand'],as_index = False).sum()
+        actions['brand_action_1_ratio'] = actions['action_4']/actions['action_1']
+        actions['brand_action_2_ratio'] = actions['action_4']/actions['action_2']
+        actions['brand_action_3_ratio'] = actions['action_4']/actions['action_3']
+
+        actions['brand_action_5_ratio'] = actions['action_4']/actions['action_5']
+        actions['brand_action_6_ratio'] = actions['action_4']/actions['action_6']
+        actions['brand_action_num'] = actions['action_1'] + actions['action_2'] + actions['action_3'] + actions[
+            'action_4'] + actions['action_5'] + actions['action_6']
+        actions = actions[feature]
+        actions.replace(np.inf, 9999)
+        actions.to_csv(dump_path)
+    return  actions
+    pass
+
+
 def get_accumulate_product_feat(start_date, end_date):
     '''
     不同产品的点击量和其他行为的比例
@@ -264,7 +291,7 @@ def get_accumulate_product_feat(start_date, end_date):
     :return:
     '''
     feature = ['sku_id', 'product_action_1_ratio', 'product_action_2_ratio', 'product_action_3_ratio',
-               'product_action_5_ratio', 'product_action_6_ratio']
+               'product_action_5_ratio', 'product_action_6_ratio', 'all_action_num']
     dump_path = './cache/product_feat_accumulate_%s_%s.csv' % (start_date, end_date)
     if os.path.exists(dump_path):
         # actions = pickle.load(open(dump_path))
@@ -279,7 +306,10 @@ def get_accumulate_product_feat(start_date, end_date):
         actions['product_action_3_ratio'] = actions['action_4'] / actions['action_3']
         actions['product_action_5_ratio'] = actions['action_4'] / actions['action_5']
         actions['product_action_6_ratio'] = actions['action_4'] / actions['action_6']
+        actions['all_action_num'] = actions['action_1'] + actions['action_2'] + actions['action_3'] + actions[
+            'action_4'] + actions['action_5'] + actions['action_6']
         actions = actions[feature]
+        actions.replace(np.inf, 9999)
         # pickle.dump(actions, open(dump_path, 'w'))
         actions.to_csv(dump_path, index=False)
     print 'finish product ration computation....'
@@ -304,6 +334,13 @@ def get_labels(start_date, end_date):
     return actions
 
 
+def get_sku_ids_in_P():
+    data_path = './data/JData_Product.csv'
+    df = pd.read_csv(data_path)
+    df = df['sku_id']
+    return df
+
+
 def make_test_set(train_start_date, train_end_date):
     dump_path = './cache/test_set_%s_%s.csv' % (train_start_date, train_end_date)
     if os.path.exists(dump_path):
@@ -316,11 +353,13 @@ def make_test_set(train_start_date, train_end_date):
         user_acc = get_accumulate_user_feat(start_days, train_end_date)
         product_acc = get_accumulate_product_feat(start_days, train_end_date)
         comment_acc = get_comments_product_feat(train_start_date, train_end_date)
+        brand_acc = get_accumulate_brand_feat(train_start_date, train_end_date)
         # labels = get_labels(test_start_date, test_end_date)
 
         # generate 时间窗口
         # actions = get_accumulate_action_feat(train_start_date, train_end_date)
         actions = None
+        skus = get_sku_ids_in_P().values
         for i in (1, 2, 3, 5, 7, 10, 15, 21, 30):
             start_days = datetime.strptime(train_end_date, '%Y-%m-%d') - timedelta(days=i)
             start_days = start_days.strftime('%Y-%m-%d')
@@ -335,9 +374,12 @@ def make_test_set(train_start_date, train_end_date):
         actions = pd.merge(actions, product, how='left', on='sku_id')
         actions = pd.merge(actions, product_acc, how='left', on='sku_id')
         actions = pd.merge(actions, comment_acc, how='left', on='sku_id')
+        actions = pd.merge(actions, brand_acc, how='left', on='brand')
         # actions = pd.merge(actions, labels, how='left', on=['user_id', 'sku_id'])
         actions = actions.fillna(0)
-        actions = actions[actions['cate'] == 8]
+        del actions['brand']
+        # actions = actions[actions['cate'] == 8]
+        actions = actions[actions['sku_id'].isin(skus)]
         actions.to_csv(dump_path, index=False)
 
     users = actions[['user_id', 'sku_id']].copy()  # 深复制数据
@@ -358,6 +400,7 @@ def make_train_set(train_start_date, train_end_date, test_start_date, test_end_d
         user_acc = get_accumulate_user_feat(start_days, train_end_date)
         product_acc = get_accumulate_product_feat(start_days, train_end_date)
         comment_acc = get_comments_product_feat(train_start_date, train_end_date)
+        brand_acc = get_accumulate_brand_feat(train_start_date,train_end_date)
         labels = get_labels(test_start_date, test_end_date)
 
         # generate 时间窗口
@@ -377,8 +420,10 @@ def make_train_set(train_start_date, train_end_date, test_start_date, test_end_d
         actions = pd.merge(actions, product, how='left', on='sku_id')
         actions = pd.merge(actions, product_acc, how='left', on='sku_id')
         actions = pd.merge(actions, comment_acc, how='left', on='sku_id')
+        actions = pd.merge(actions, brand_acc, how='left', on='brand')
         actions = pd.merge(actions, labels, how='left', on=['user_id', 'sku_id'])
         actions = actions.fillna(0)
+        del actions['brand']
         actions.to_csv(dump_path, index=False)
     users = actions[['user_id', 'sku_id']].copy()
     del actions['user_id']
@@ -445,17 +490,17 @@ if __name__ == '__main__':
     # print user.head(10)
     # print action.head(10)
 
-    feature = ['sku_id', 'user_action_1_ratio', 'user_action_2_ratio', 'user_action_3_ratio',
-               'user_action_5_ratio', 'user_action_6_ratio']
-    actions = pd.read_csv('data/JData_Action_201602.csv')
-    df = pd.get_dummies(actions['type'], prefix='action')
-    actions = pd.concat([actions['sku_id'], df], axis=1)
-    actions = actions.groupby(['sku_id'], as_index=False).sum()
-    actions['user_action_1_ratio'] = actions['action_4'] / actions['action_1']
-    actions['user_action_2_ratio'] = actions['action_4'] / actions['action_2']
-    actions['user_action_3_ratio'] = actions['action_4'] / actions['action_3']
-    actions['user_action_5_ratio'] = actions['action_4'] / actions['action_5']
-    actions['user_action_6_ratio'] = actions['action_4'] / actions['action_6']
-    actions = actions[feature]
-    print 'finish get the ratio of user'
-    actions.to_csv('cache/ration_action_sku.csv', index=False)
+    # feature = ['sku_id', 'user_action_1_ratio', 'user_action_2_ratio', 'user_action_3_ratio',
+    #            'user_action_5_ratio', 'user_action_6_ratio']
+    # actions = pd.read_csv('data/JData_Action_201602.csv')
+    # df = pd.get_dummies(actions['type'], prefix='action')
+    # actions = pd.concat([actions['sku_id'], df], axis=1)
+    # actions = actions.groupby(['sku_id'], as_index=False).sum()
+    # actions['user_action_1_ratio'] = actions['action_4'] / actions['action_1']
+    # actions['user_action_2_ratio'] = actions['action_4'] / actions['action_2']
+    # actions['user_action_3_ratio'] = actions['action_4'] / actions['action_3']
+    # actions['user_action_5_ratio'] = actions['action_4'] / actions['action_5']
+    # actions['user_action_6_ratio'] = actions['action_4'] / actions['action_6']
+    # actions = actions[feature]
+    # print 'finish get the ratio of user'
+    # actions.to_csv('cache/ration_action_sku.csv', index=False)

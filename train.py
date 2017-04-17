@@ -32,7 +32,7 @@ def xgboost_train(offline_test = False):
     param = {'learning_rate': 0.1, 'n_estimators': 1000, 'max_depth': 3,
              'min_child_weight': 5, 'gamma': 0, 'subsample': 1.0, 'colsample_bytree': 0.8,
              'scale_pos_weight': 1, 'eta': 0.05, 'silent': 1, 'objective': 'binary:logistic'}
-    num_round = 200
+    num_round = 283
     param['nthread'] = 4
     # param['eval_metric'] = "auc"
     plst = param.items()
@@ -66,20 +66,22 @@ def xgboost_make_submission(retrain = False):
 
 def xgboost_test_offline():
     bst = xgboost_train(True)
+    P = get_sku_ids_in_P()
     labels = get_labels('2016-04-11','2016-04-16')
     sub_user_index, sub_trainning_data = make_test_set('2016-04-11', '2016-04-16', )
     sub_trainning_data = xgb.DMatrix(sub_trainning_data.values)
     y = bst.predict(sub_trainning_data)
     sub_user_index['label'] = y
-    pred = sub_user_index[sub_user_index['label'] >= 0.01]
+    pred = sub_user_index[sub_user_index['label'] >= 0.03]
     # pred = sub_user_index
     pred = pred[['user_id', 'sku_id']]
     pred = pred.groupby('user_id').first().reset_index()
     pred['user_id'] = pred['user_id'].astype(int)
+    # pred = pred[pred['sku_id'].isin(P)]
     labels = labels[labels['label']==1]
     labels['user_id'] = labels['user_id'].astype(int)
     labels = labels[['user_id','sku_id']]
-
+    labels = labels[labels['sku_id'].isin(P)]
     eval.eval(pred,labels)
 
     pass
