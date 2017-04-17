@@ -1,11 +1,10 @@
-#!/usr/bin/env python2
-# -*- coding: utf-8-*-
-"""
+# encoding=UTF-8
+'''
 created on 
 @author: sunfc
 ------------------
 根据sample_filename生成出feature_filename
-"""
+'''
 
 import csv
 #from datetime import *

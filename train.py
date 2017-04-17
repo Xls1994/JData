@@ -1,17 +1,28 @@
 __author__ = 'foursking'
 from gen_feat import make_train_set
 from gen_feat import make_test_set
+from gen_feat import get_actions
 from sklearn.model_selection import train_test_split
 import xgboost as xgb
 from gen_feat import report
+from gen_feat import get_sku_ids_in_P
+import datetime
 import os
+from gen_feat import  get_labels
+import eval
 
 
-def xgboost_train():
+
+def xgboost_train(offline_test = False):
     train_start_date = '2016-03-10'
     train_end_date = '2016-04-11'
     test_start_date = '2016-04-11'
     test_end_date = '2016-04-16'
+    if offline_test:
+        train_start_date = '2016-03-05'
+        train_end_date = '2016-04-06'
+        test_start_date = '2016-04-06'
+        test_end_date = '2016-04-11'
 
     user_index, training_data, label = make_train_set(train_start_date, train_end_date, test_start_date, test_end_date)
     X_train, X_test, y_train, y_test = train_test_split(training_data.values, label.values, test_size=0.2,
@@ -32,10 +43,10 @@ def xgboost_train():
     return bst
 
 
-def xgboost_make_submission():
+def xgboost_make_submission(retrain = False):
     sub_start_date = '2016-03-15'
     sub_end_date = '2016-04-16'
-    if os.path.exists('./cache/bstmodel.bin'):
+    if os.path.exists('./cache/bstmodel.bin') and not retrain:
         bst = xgb.Booster({'ntheard':4})
         bst.load_model('./cache/bstmodel.bin')
     else:
@@ -48,8 +59,32 @@ def xgboost_make_submission():
     pred = pred[['user_id', 'sku_id']]
     pred = pred.groupby('user_id').first().reset_index()
     pred['user_id'] = pred['user_id'].astype(int)
-    pred.to_csv('./sub/submission.csv', index=False, index_label=False)
+    dt = datetime.datetime.now()
+    sdt = str(dt.date())+str(dt.hour)+str(dt.minute)+str(dt.second)
+    pred.to_csv('./sub/submission_%s.csv' % sdt, index=False, index_label=False)
+    # P = get_sku_ids_in_P()
 
+def xgboost_test_offline():
+    bst = xgboost_train(True)
+    P = get_sku_ids_in_P()
+    labels = get_labels('2016-04-11','2016-04-16')
+    sub_user_index, sub_trainning_data = make_test_set('2016-04-11', '2016-04-16', )
+    sub_trainning_data = xgb.DMatrix(sub_trainning_data.values)
+    y = bst.predict(sub_trainning_data)
+    sub_user_index['label'] = y
+    pred = sub_user_index[sub_user_index['label'] >= 0.03]
+    # pred = sub_user_index
+    pred = pred[['user_id', 'sku_id']]
+    pred = pred.groupby('user_id').first().reset_index()
+    pred['user_id'] = pred['user_id'].astype(int)
+    # pred = pred[pred['sku_id'].isin(P)]
+    labels = labels[labels['label']==1]
+    labels['user_id'] = labels['user_id'].astype(int)
+    labels = labels[['user_id','sku_id']]
+    labels = labels[labels['sku_id'].isin(P)]
+    eval.eval(pred,labels)
+
+    pass
 
 def xgboost_cv():
     train_start_date = '2016-03-05'
@@ -89,4 +124,5 @@ def xgboost_cv():
 
 if __name__ == '__main__':
     # xgboost_cv()
-    xgboost_make_submission()
+    # xgboost_make_submission(False)
+    xgboost_test_offline()
